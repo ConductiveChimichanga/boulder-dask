@@ -1,17 +1,47 @@
 import 'phaser';
 import { Level, TileType } from './level';
 import { MenuScene } from './menuScene';
+import { Boulder } from './tiles/Boulder';
+import { Tile } from './tiles/Tile';
+import { GameScene as IGameScene } from './types';
 
-export class GameScene extends Phaser.Scene {
+export class GameScene extends Phaser.Scene implements IGameScene {
     private level!: Level;
     private player!: Phaser.GameObjects.Rectangle;
-    private tileSize = 32; // pixels per tile
+    private tileSize = 32;
     private playerGridPos = { x: 1, y: 1 };
     private isMoving = false;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+    private tiles: Map<string, Tile> = new Map();
 
     constructor() {
         super({ key: 'GameScene' });
+    }
+
+    getTileSize(): number {
+        return this.tileSize;
+    }
+
+    getTileAt(x: number, y: number): TileType {
+        return this.level.getTile(x, y);
+    }
+
+    moveTile(fromX: number, fromY: number, toX: number, toY: number) {
+        const key = `${fromX},${fromY}`;
+        const tile = this.tiles.get(key);
+        if (!tile) return;
+
+        // Update the level data
+        const tileType = this.level.getTile(fromX, fromY);
+        this.level.setTile(fromX, fromY, TileType.Empty);
+        this.level.setTile(toX, toY, tileType);
+
+        // Update the tile map
+        this.tiles.delete(key);
+        this.tiles.set(`${toX},${toY}`, tile);
+
+        // Move the tile sprite
+        tile.moveTo(toX, toY);
     }
 
     preload() {
@@ -172,49 +202,26 @@ export class GameScene extends Phaser.Scene {
         for (let y = 0; y < this.level.height; y++) {
             for (let x = 0; x < this.level.width; x++) {
                 const tile = this.level.getTile(x, y);
-                let textureName: string = 'empty'; // Default texture
-                
                 switch (tile) {
                     case TileType.Empty:
-                        textureName = 'empty';
-                        break;
-                    case TileType.Dirt:
-                        textureName = 'dirt';
-                        break;
-                    case TileType.Wall:
-                        textureName = 'wall';
+                        this.add.image(
+                            x * this.tileSize + this.tileSize/2,
+                            y * this.tileSize + this.tileSize/2,
+                            'empty'
+                        );
                         break;
                     case TileType.Boulder:
-                        textureName = 'boulder';
+                        const boulder = new Boulder(this, x, y);
+                        this.tiles.set(`${x},${y}`, boulder);
                         break;
-                    case TileType.Diamond:
-                        textureName = 'diamond';
-                        break;
-                    case TileType.Exit:
-                        textureName = 'exit';
-                        break;
-                    case TileType.Butterfly:
-                        textureName = 'butterfly';
-                        break;
-                    case TileType.Firefly:
-                        textureName = 'firefly';
-                        break;
-                    case TileType.Amoeba:
-                        textureName = 'amoeba';
-                        break;
-                    case TileType.MagicWall:
-                        textureName = 'magic-wall';
-                        break;
-                    case TileType.DestructibleWall:
-                        textureName = 'destructible-wall';
+                    default:
+                        this.add.image(
+                            x * this.tileSize + this.tileSize/2,
+                            y * this.tileSize + this.tileSize/2,
+                            this.getTextureNameForTile(tile)
+                        );
                         break;
                 }
-                
-                this.add.image(
-                    x * this.tileSize + this.tileSize/2,
-                    y * this.tileSize + this.tileSize/2,
-                    textureName
-                );
             }
         }
 
@@ -232,15 +239,34 @@ export class GameScene extends Phaser.Scene {
         this.player = this.add.rectangle(
             this.playerGridPos.x * this.tileSize + this.tileSize/2,
             this.playerGridPos.y * this.tileSize + this.tileSize/2,
-            this.tileSize * 0.8, // slightly smaller than tile
+            this.tileSize * 0.8,
             this.tileSize * 0.8,
             0x0000ff
         );
     }
 
+    private getTextureNameForTile(tile: TileType): string {
+        switch (tile) {
+            case TileType.Dirt: return 'dirt';
+            case TileType.Wall: return 'wall';
+            case TileType.Diamond: return 'diamond';
+            case TileType.Exit: return 'exit';
+            case TileType.Butterfly: return 'butterfly';
+            case TileType.Firefly: return 'firefly';
+            case TileType.Amoeba: return 'amoeba';
+            case TileType.MagicWall: return 'magic-wall';
+            case TileType.DestructibleWall: return 'destructible-wall';
+            default: return 'empty';
+        }
+    }
+
     update() {
+        // Update all tiles (this will handle boulder falling and rolling)
+        for (const tile of this.tiles.values()) {
+            tile.update();
+        }
+
         if (this.isMoving) {
-            // If the player is exactly on a tile position, allow new movement
             const targetX = this.playerGridPos.x * this.tileSize + this.tileSize/2;
             const targetY = this.playerGridPos.y * this.tileSize + this.tileSize/2;
             if (this.player.x === targetX && this.player.y === targetY) {
@@ -262,39 +288,46 @@ export class GameScene extends Phaser.Scene {
             const newX = this.playerGridPos.x + dx;
             const newY = this.playerGridPos.y + dy;
 
-            // Check if the new position is either empty or dirt (but not any kind of wall)
+            // Check if the new position is valid
             const targetTile = this.level.getTile(newX, newY);
-            if (targetTile !== TileType.Wall && targetTile !== TileType.DestructibleWall && targetTile !== TileType.MagicWall) {
+            if (targetTile === TileType.Boulder) {
+                // Try to push the boulder
+                const boulder = this.tiles.get(`${newX},${newY}`) as Boulder;
+                if (boulder && boulder.canBePushed({ dx, dy })) {
+                    boulder.push({ dx, dy });
+                    this.movePlayer(newX, newY);
+                }
+            } else if (targetTile === TileType.Empty || targetTile === TileType.Dirt) {
                 if (targetTile === TileType.Dirt) {
                     this.level.setTile(newX, newY, TileType.Empty);
-                    // Find and destroy the dirt rectangle at this position
+                    // Find and destroy the dirt image
                     this.children.list
-                        .filter(obj => obj instanceof Phaser.GameObjects.Rectangle)
-                        .find(rect => {
-                            const r = rect as Phaser.GameObjects.Rectangle;
-                            return r !== this.player && 
-                                   r.x === newX * this.tileSize + this.tileSize/2 && 
-                                   r.y === newY * this.tileSize + this.tileSize/2;
+                        .filter(obj => obj instanceof Phaser.GameObjects.Image)
+                        .find(img => {
+                            return img.x === newX * this.tileSize + this.tileSize/2 && 
+                                   img.y === newY * this.tileSize + this.tileSize/2;
                         })?.destroy();
                 }
-
-                this.isMoving = true;
-                this.playerGridPos.x = newX;
-                this.playerGridPos.y = newY;
-
-                // Move the player sprite
-                this.tweens.add({
-                    targets: this.player,
-                    x: newX * this.tileSize + this.tileSize/2,
-                    y: newY * this.tileSize + this.tileSize/2,
-                    duration: 150,
-                    ease: 'Power1',
-                    onComplete: () => {
-                        this.isMoving = false;
-                    }
-                });
+                this.movePlayer(newX, newY);
             }
         }
+    }
+
+    private movePlayer(newX: number, newY: number) {
+        this.isMoving = true;
+        this.playerGridPos.x = newX;
+        this.playerGridPos.y = newY;
+
+        this.tweens.add({
+            targets: this.player,
+            x: newX * this.tileSize + this.tileSize/2,
+            y: newY * this.tileSize + this.tileSize/2,
+            duration: 150,
+            ease: 'Power1',
+            onComplete: () => {
+                this.isMoving = false;
+            }
+        });
     }
 }
 
