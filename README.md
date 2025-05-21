@@ -1,6 +1,6 @@
 # Boulder Dash Game Clone
 
-A modern implementation of the classic Boulder Dash game using TypeScript and Phaser 3 game framework, generated entirely with the help of CLaude 3.5 Agent mode in Copilot.
+A modern implementation of the classic Boulder Dash game using TypeScript and Phaser 3 game framework, generated with the help of CLaude 3.5 Agent mode in Copilot.
 
 ## Description
 
