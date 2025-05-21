@@ -34,53 +34,75 @@ export class Level {
             this.tiles[y][Level.WIDTH - 1] = TileType.Wall;  // Right border
         }
 
-        // Create a variety of tile types in different sections
+        // Create larger open areas for monsters
         
-        // Create starting area
-        this.tiles[1][1] = TileType.Empty;
-        this.tiles[1][2] = TileType.Empty;
-        this.tiles[2][1] = TileType.Empty;
-        this.tiles[2][2] = TileType.Empty;
-
-        // Add some boulders
-        this.tiles[3][4] = TileType.Boulder;
-        this.tiles[3][5] = TileType.Boulder;
-        this.tiles[4][6] = TileType.Boulder;
-
-        // Add some diamonds
-        this.tiles[2][8] = TileType.Diamond;
-        this.tiles[3][8] = TileType.Diamond;
-        this.tiles[4][8] = TileType.Diamond;
-
-        // Add destructible walls
-        this.tiles[5][5] = TileType.DestructibleWall;
-        this.tiles[5][6] = TileType.DestructibleWall;
-        this.tiles[5][7] = TileType.DestructibleWall;
-        this.tiles[6][5] = TileType.DestructibleWall;
-
-        // Add a magic wall section
-        this.tiles[10][15] = TileType.MagicWall;
-        this.tiles[10][16] = TileType.MagicWall;
-        this.tiles[10][17] = TileType.MagicWall;
-
-        // Add some enemies
-        this.tiles[8][8] = TileType.Butterfly;
-        this.tiles[8][12] = TileType.Firefly;
-
-        // Add some amoeba
-        this.tiles[15][15] = TileType.Amoeba;
-        
-        // Add exit
-        this.tiles[Level.HEIGHT - 2][Level.WIDTH - 2] = TileType.Exit;
-
-        // Add some vertical destructible walls
-        for (let y = 3; y < Level.HEIGHT - 3; y++) {
-            if (y % 5 === 0) {  // Create gaps every 5 blocks
-                continue;
+        // Player starting area (top-left)
+        for (let y = 1; y <= 3; y++) {
+            for (let x = 1; x <= 3; x++) {
+                this.tiles[y][x] = TileType.Empty;
             }
-            this.tiles[y][10] = TileType.DestructibleWall;
-            this.tiles[y][20] = TileType.DestructibleWall;
-            this.tiles[y][30] = TileType.DestructibleWall;
+        }
+
+        // Create three main chambers with open spaces
+        
+        // Left chamber (with butterflies)
+        this.createChamber(5, 5, 12, 12);
+        this.tiles[6][7] = TileType.Butterfly;
+        this.tiles[8][9] = TileType.Butterfly;
+        this.tiles[10][7] = TileType.Diamond;
+        this.tiles[7][10] = TileType.Diamond;
+
+        // Middle chamber (with fireflies)
+        this.createChamber(5, 15, 12, 22);
+        this.tiles[7][17] = TileType.Firefly;
+        this.tiles[9][19] = TileType.Firefly;
+        this.tiles[8][18] = TileType.Diamond;
+        this.tiles[10][20] = TileType.Diamond;
+
+        // Right chamber (with mixed enemies)
+        this.createChamber(5, 25, 12, 32);
+        this.tiles[6][27] = TileType.Butterfly;
+        this.tiles[8][29] = TileType.Firefly;
+        this.tiles[7][28] = TileType.Diamond;
+        this.tiles[9][30] = TileType.Diamond;
+
+        // Add boulders as obstacles
+        this.tiles[4][8] = TileType.Boulder;
+        this.tiles[4][18] = TileType.Boulder;
+        this.tiles[4][28] = TileType.Boulder;
+
+        // Add more diamonds scattered around
+        this.tiles[14][8] = TileType.Diamond;
+        this.tiles[14][18] = TileType.Diamond;
+        this.tiles[14][28] = TileType.Diamond;
+        this.tiles[14][38] = TileType.Diamond;
+
+        // Add some amoeba growth zones
+        this.tiles[16][10] = TileType.Amoeba;
+        this.tiles[16][20] = TileType.Amoeba;
+        this.tiles[16][30] = TileType.Amoeba;
+
+        // Add magic walls in strategic positions
+        this.tiles[18][15] = TileType.MagicWall;
+        this.tiles[18][16] = TileType.MagicWall;
+        this.tiles[18][17] = TileType.MagicWall;
+
+        // Add destructible walls as chamber separators
+        for (let y = 5; y < 15; y++) {
+            if (y % 3 !== 0) {  // Create gaps every 3 blocks
+                this.tiles[y][13] = TileType.DestructibleWall;
+                this.tiles[y][23] = TileType.DestructibleWall;
+                this.tiles[y][33] = TileType.DestructibleWall;
+            }
+        }
+    }
+
+    // Helper method to create an open chamber
+    private createChamber(startY: number, startX: number, endY: number, endX: number) {
+        for (let y = startY; y <= endY; y++) {
+            for (let x = startX; x <= endX; x++) {
+                this.tiles[y][x] = TileType.Empty;
+            }
         }
     }
 

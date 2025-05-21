@@ -13,7 +13,7 @@ import { Exit } from './tiles/Exit';
 
 export class GameScene extends Phaser.Scene implements IGameScene {
     private level!: Level;
-    private player!: Phaser.GameObjects.Rectangle;
+    private player!: Phaser.GameObjects.Image;
     private tileSize = 32;
     private playerGridPos = { x: 1, y: 1 };
     private isMoving = false;
@@ -24,6 +24,10 @@ export class GameScene extends Phaser.Scene implements IGameScene {
     private isPlayerDead: boolean = false;
     private isLevelComplete: boolean = false;
     private scoreText!: Phaser.GameObjects.Text;
+    private diamondText!: Phaser.GameObjects.Text;
+    private hudBackground!: Phaser.GameObjects.Rectangle;
+    private score: number = 0;
+    private diamondValue: number = 100; // Points per diamond
     
     constructor() {
         super({ key: 'GameScene' });
@@ -135,31 +139,96 @@ export class GameScene extends Phaser.Scene implements IGameScene {
         graphics.generateTexture('exit', 32, 32);
         graphics.clear();
 
-        // Butterfly - Pink with wing pattern
-        graphics.fillStyle(0xFF69B4);
-        graphics.fillCircle(16, 16, 8);
-        graphics.lineStyle(2, 0xFF1493);
+        // Player - Blue character with details
+        graphics.lineStyle(2, 0x4444ff);
+        graphics.fillStyle(0x0000ff);
+        
+        // Body
+        graphics.fillCircle(16, 16, 12);
+        graphics.strokeCircle(16, 16, 12);
+        
+        // Eyes
+        graphics.fillStyle(0xffffff);
+        graphics.fillCircle(12, 14, 3);
+        graphics.fillCircle(20, 14, 3);
+        graphics.fillStyle(0x000000);
+        graphics.fillCircle(12, 14, 1.5);
+        graphics.fillCircle(20, 14, 1.5);
+        
+        // Smile
+        graphics.lineStyle(2, 0xffffff);
         graphics.beginPath();
-        graphics.moveTo(16, 8);
-        // Draw wings using curves
-        for (let i = 0; i < Math.PI * 2; i += Math.PI / 2) {
-            const x1 = 16 + Math.cos(i) * 12;
-            const y1 = 16 + Math.sin(i) * 12;
-            const x2 = 16 + Math.cos(i + Math.PI / 4) * 16;
-            const y2 = 16 + Math.sin(i + Math.PI / 4) * 16;
-            graphics.lineTo(x1, y1);
-            graphics.lineTo(x2, y2);
-        }
-        graphics.closePath();
+        graphics.arc(16, 18, 6, 0, Math.PI);
         graphics.strokePath();
+        
+        graphics.generateTexture('player', 32, 32);
+        graphics.clear();
+
+        // Butterfly - More detailed design
+        graphics.lineStyle(2, 0xFF1493);
+        
+        // Wings
+        for (let i = 0; i < 2; i++) {
+            const xOffset = i ? 1 : -1;
+            // Top wings
+            graphics.fillStyle(0xFF69B4);
+            graphics.beginPath();
+            graphics.moveTo(16, 16);
+            graphics.lineTo(16 + (8 * xOffset), 8);
+            graphics.lineTo(16 + (12 * xOffset), 12);
+            graphics.lineTo(16, 16);
+            graphics.closePath();
+            graphics.fillPath();
+            graphics.strokePath();
+
+            // Bottom wings
+            graphics.fillStyle(0xFF1493);
+            graphics.beginPath();
+            graphics.moveTo(16, 16);
+            graphics.lineTo(16 + (8 * xOffset), 24);
+            graphics.lineTo(16 + (12 * xOffset), 20);
+            graphics.lineTo(16, 16);
+            graphics.closePath();
+            graphics.fillPath();
+            graphics.strokePath();
+        }
+
+        // Body
+        graphics.fillStyle(0xFFB6C1);
+        graphics.fillCircle(16, 16, 4);
+        graphics.strokeCircle(16, 16, 4);
+        
+        // Antennae
+        graphics.lineStyle(1, 0xFF1493);
+        graphics.beginPath();
+        graphics.moveTo(14, 14);
+        graphics.lineTo(10, 8);
+        graphics.moveTo(18, 14);
+        graphics.lineTo(22, 8);
+        graphics.strokePath();
+
         graphics.generateTexture('butterfly', 32, 32);
         graphics.clear();
 
-        // Firefly - Orange-red with glow
+        // Firefly - Enhanced glow effect
+        // Outer glow layers
+        for (let radius = 14; radius > 8; radius -= 2) {
+            graphics.lineStyle(2, 0xFF8C00, 0.2);
+            graphics.strokeCircle(16, 16, radius);
+        }
+        
+        // Body
         graphics.fillStyle(0xFF4500);
         graphics.fillCircle(16, 16, 8);
         graphics.lineStyle(2, 0xFF8C00);
-        graphics.strokeCircle(16, 16, 12);
+        graphics.strokeCircle(16, 16, 8);
+        
+        // Light spots
+        graphics.fillStyle(0xFFFF00);
+        graphics.fillCircle(14, 14, 2);
+        graphics.fillCircle(18, 14, 2);
+        graphics.fillCircle(16, 18, 2);
+
         graphics.generateTexture('firefly', 32, 32);
         graphics.clear();
 
@@ -209,12 +278,38 @@ export class GameScene extends Phaser.Scene implements IGameScene {
         this.level = new Level();
         this.cursors = this.input.keyboard!.createCursorKeys();
         
+        // Create HUD background
+        const hudHeight = 50;
+        this.hudBackground = this.add.rectangle(0, 0, this.scale.width, hudHeight, 0x000000, 0.7);
+        this.hudBackground.setOrigin(0, 0);
+        this.hudBackground.setScrollFactor(0);
+        this.hudBackground.setDepth(100);
+
         // Add score display
-        this.scoreText = this.add.text(16, 16, 'Diamonds: 0/' + this.requiredDiamonds, {
-            fontSize: '32px',
-            color: '#fff'
+        this.scoreText = this.add.text(this.scale.width - 20, hudHeight/2, 'Score: 0', {
+            fontSize: '24px',
+            color: '#fff',
+            align: 'right'
         });
+        this.scoreText.setOrigin(1, 0.5);
         this.scoreText.setScrollFactor(0);
+        this.scoreText.setDepth(100);
+
+        // Add diamond counter
+        const diamondIcon = this.add.image(20, hudHeight/2, 'diamond');
+        diamondIcon.setScale(0.8);
+        diamondIcon.setScrollFactor(0);
+        diamondIcon.setDepth(100);
+
+        // Add diamond counter text
+        this.diamondText = this.add.text(50, hudHeight/2, '0/' + this.requiredDiamonds, {
+            fontSize: '24px',
+            color: '#00ffff',
+            align: 'left'
+        });
+        this.diamondText.setOrigin(0, 0.5);
+        this.diamondText.setScrollFactor(0);
+        this.diamondText.setDepth(100);
         
         // Draw the level
         for (let y = 0; y < this.level.height; y++) {
@@ -267,14 +362,16 @@ export class GameScene extends Phaser.Scene implements IGameScene {
             }
         }
 
-        // Create player (blue rectangle for now)
-        this.player = this.add.rectangle(
+        // Create player with the new sprite
+        this.player = this.add.image(
             this.playerGridPos.x * this.tileSize + this.tileSize/2,
             this.playerGridPos.y * this.tileSize + this.tileSize/2,
-            this.tileSize * 0.8,
-            this.tileSize * 0.8,
-            0x0000ff
+            'player'
         );
+    }
+
+    getPlayerPosition() {
+        return { ...this.playerGridPos };
     }
 
     private getTextureNameForTile(tile: TileType): string {
@@ -292,6 +389,79 @@ export class GameScene extends Phaser.Scene implements IGameScene {
         }
     }
 
+    private checkEnemyCollisions() {
+        const enemyPositions = new Map<string, Tile>();
+        
+        // Collect positions of all enemies
+        for (const [key, tile] of this.tiles.entries()) {
+            if (tile instanceof Butterfly || tile instanceof Firefly) {
+                const pos = tile.getGridPosition();
+                const posKey = `${pos.x},${pos.y}`;
+                
+                if (enemyPositions.has(posKey)) {
+                    // Collision detected! Create explosion
+                    const otherEnemy = enemyPositions.get(posKey)!;
+                    this.createExplosion(pos.x, pos.y);
+                    
+                    // Remove both enemies
+                    tile.destroy();
+                    otherEnemy.destroy();
+                    this.tiles.delete(key);
+                    
+                    // Find and delete the other enemy from the tiles map
+                    for (const [otherKey, t] of this.tiles.entries()) {
+                        if (t === otherEnemy) {
+                            this.tiles.delete(otherKey);
+                            break;
+                        }
+                    }
+                    
+                    // Convert the explosion area to diamonds
+                    this.createDiamondsFromExplosion(pos.x, pos.y);
+                } else {
+                    enemyPositions.set(posKey, tile);
+                }
+            }
+        }
+    }
+    
+    private createExplosion(x: number, y: number) {
+        // Create a particle effect for the explosion
+        const particles = this.add.particles(x * this.tileSize + this.tileSize/2, 
+                                          y * this.tileSize + this.tileSize/2, 
+                                          'diamond', {
+            speed: { min: 50, max: 150 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 0.5, end: 0 },
+            lifespan: 500,
+            quantity: 20,
+            tint: [0xFF69B4, 0xFF8C00] // Mix of butterfly and firefly colors
+        });
+        
+        // Auto-destroy the emitter after animation
+        this.time.delayedCall(500, () => {
+            particles.destroy();
+        });
+    }
+    
+    private createDiamondsFromExplosion(centerX: number, centerY: number) {
+        // Create diamonds in a cross pattern
+        const diamondPositions = [
+            {x: centerX, y: centerY},
+            {x: centerX + 1, y: centerY},
+            {x: centerX - 1, y: centerY},
+            {x: centerX, y: centerY + 1},
+            {x: centerX, y: centerY - 1}
+        ];
+        
+        for (const pos of diamondPositions) {
+            if (this.level.getTile(pos.x, pos.y) === TileType.Empty) {
+                this.level.setTile(pos.x, pos.y, TileType.Diamond);
+                this.tiles.set(`${pos.x},${pos.y}`, new Diamond(this, pos.x, pos.y));
+            }
+        }
+    }
+
     update() {
         if (this.isPlayerDead || this.isLevelComplete) {
             return; // Stop updates if game is over
@@ -301,6 +471,9 @@ export class GameScene extends Phaser.Scene implements IGameScene {
         for (const tile of this.tiles.values()) {
             tile.update();
         }
+
+        // Check for enemy collisions
+        this.checkEnemyCollisions();
 
         // Check for death by boulder or enemies
         this.checkForDeath();
@@ -373,7 +546,11 @@ export class GameScene extends Phaser.Scene implements IGameScene {
             this.tiles.delete(key);
             this.level.setTile(x, y, TileType.Empty);
             this.diamondsCollected++;
-            this.scoreText.setText(`Diamonds: ${this.diamondsCollected}/${this.requiredDiamonds}`);
+            this.score += this.diamondValue;
+            
+            // Update score and diamond displays
+            this.scoreText.setText(`Score: ${this.score}`);
+            this.diamondText.setText(`${this.diamondsCollected}/${this.requiredDiamonds}`);
             
             // Show exit when enough diamonds are collected
             if (this.diamondsCollected >= this.requiredDiamonds) {
