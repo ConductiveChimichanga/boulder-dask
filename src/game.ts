@@ -26,7 +26,40 @@ export class GameScene extends Phaser.Scene {
         for (let y = 0; y < this.level.height; y++) {
             for (let x = 0; x < this.level.width; x++) {
                 const tile = this.level.getTile(x, y);
-                const color = tile === TileType.Empty ? 0x000000 : 0x8B4513;
+                let color;
+                switch (tile) {
+                    case TileType.Empty:
+                        color = 0x000000; // Black
+                        break;
+                    case TileType.Dirt:
+                        color = 0x8B4513; // Brown
+                        break;
+                    case TileType.Wall:
+                        color = 0x654321; // Dark Brown
+                        break;
+                    case TileType.Boulder:
+                        color = 0xA0522D; // Sienna
+                        break;
+                    case TileType.Diamond:
+                        color = 0x00FFFF; // Cyan
+                        break;
+                    case TileType.Exit:
+                        color = 0x00FF00; // Green
+                        break;
+                    case TileType.Butterfly:
+                        color = 0xFF69B4; // Hot Pink
+                        break;
+                    case TileType.Firefly:
+                        color = 0xFF4500; // Orange Red
+                        break;
+                    case TileType.Amoeba:
+                        color = 0x9370DB; // Medium Purple
+                        break;
+                    case TileType.MagicWall:
+                    case TileType.DestructibleWall:
+                        color = 0x808080; // Gray
+                        break;
+                }
                 
                 this.add.rectangle(
                     x * this.tileSize + this.tileSize/2,
@@ -82,8 +115,22 @@ export class GameScene extends Phaser.Scene {
             const newX = this.playerGridPos.x + dx;
             const newY = this.playerGridPos.y + dy;
 
-            // Check if the new position is empty
-            if (this.level.getTile(newX, newY) === TileType.Empty) {
+            // Check if the new position is either empty or dirt (but not wall)
+            const targetTile = this.level.getTile(newX, newY);
+            if (targetTile !== TileType.Wall) {  // Can't move through walls
+                if (targetTile === TileType.Dirt) {
+                    this.level.setTile(newX, newY, TileType.Empty);
+                    // Find and destroy the dirt rectangle at this position
+                    this.children.list
+                        .filter(obj => obj instanceof Phaser.GameObjects.Rectangle)
+                        .find(rect => {
+                            const r = rect as Phaser.GameObjects.Rectangle;
+                            return r !== this.player && 
+                                   r.x === newX * this.tileSize + this.tileSize/2 && 
+                                   r.y === newY * this.tileSize + this.tileSize/2;
+                        })?.destroy();
+                }
+
                 this.isMoving = true;
                 this.playerGridPos.x = newX;
                 this.playerGridPos.y = newY;
@@ -93,7 +140,7 @@ export class GameScene extends Phaser.Scene {
                     targets: this.player,
                     x: newX * this.tileSize + this.tileSize/2,
                     y: newY * this.tileSize + this.tileSize/2,
-                    duration: 150, // 150ms per tile movement
+                    duration: 150,
                     ease: 'Power1',
                     onComplete: () => {
                         this.isMoving = false;
