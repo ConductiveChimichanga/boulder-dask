@@ -115,9 +115,9 @@ export class GameScene extends Phaser.Scene {
             const newX = this.playerGridPos.x + dx;
             const newY = this.playerGridPos.y + dy;
 
-            // Check if the new position is either empty or dirt (but not wall)
+            // Check if the new position is either empty or dirt (but not any kind of wall)
             const targetTile = this.level.getTile(newX, newY);
-            if (targetTile !== TileType.Wall) {  // Can't move through walls
+            if (targetTile !== TileType.Wall && targetTile !== TileType.DestructibleWall && targetTile !== TileType.MagicWall) {
                 if (targetTile === TileType.Dirt) {
                     this.level.setTile(newX, newY, TileType.Empty);
                     // Find and destroy the dirt rectangle at this position
