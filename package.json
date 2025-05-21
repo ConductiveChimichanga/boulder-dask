@@ -1,11 +1,11 @@
 {
-  "name": "boulder-dask",
+  "name": "boulderdash",
   "version": "1.0.0",
-  "main": "index.js",
+  "type": "module",
   "scripts": {
-    "build": "webpack",
-    "start": "webpack serve --open",
-    "watch": "webpack --watch"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
   },
   "keywords": [],
   "author": "",
@@ -15,11 +15,8 @@
     "phaser": "^3.88.2"
   },
   "devDependencies": {
-    "html-webpack-plugin": "^5.6.3",
-    "ts-loader": "^9.5.2",
+    "@types/node": "^20.11.0",
     "typescript": "^5.8.3",
-    "webpack": "^5.99.9",
-    "webpack-cli": "^6.0.1",
-    "webpack-dev-server": "^5.2.1"
+    "vite": "^5.0.0"
   }
 }
