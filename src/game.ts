@@ -4,6 +4,12 @@ import { MenuScene } from './menuScene';
 import { Boulder } from './tiles/Boulder';
 import { Tile } from './tiles/Tile';
 import { GameScene as IGameScene } from './types';
+import { Diamond } from './tiles/Diamond';
+import { Butterfly } from './tiles/Butterfly';
+import { Firefly } from './tiles/Firefly';
+import { Amoeba } from './tiles/Amoeba';
+import { MagicWall } from './tiles/MagicWall';
+import { Exit } from './tiles/Exit';
 
 export class GameScene extends Phaser.Scene implements IGameScene {
     private level!: Level;
@@ -13,7 +19,12 @@ export class GameScene extends Phaser.Scene implements IGameScene {
     private isMoving = false;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private tiles: Map<string, Tile> = new Map();
-
+    private diamondsCollected: number = 0;
+    private requiredDiamonds: number = 12; // Adjust this based on level design
+    private isPlayerDead: boolean = false;
+    private isLevelComplete: boolean = false;
+    private scoreText!: Phaser.GameObjects.Text;
+    
     constructor() {
         super({ key: 'GameScene' });
     }
@@ -198,6 +209,13 @@ export class GameScene extends Phaser.Scene implements IGameScene {
         this.level = new Level();
         this.cursors = this.input.keyboard!.createCursorKeys();
         
+        // Add score display
+        this.scoreText = this.add.text(16, 16, 'Diamonds: 0/' + this.requiredDiamonds, {
+            fontSize: '32px',
+            color: '#fff'
+        });
+        this.scoreText.setScrollFactor(0);
+        
         // Draw the level
         for (let y = 0; y < this.level.height; y++) {
             for (let x = 0; x < this.level.width; x++) {
@@ -211,8 +229,22 @@ export class GameScene extends Phaser.Scene implements IGameScene {
                         );
                         break;
                     case TileType.Boulder:
-                        const boulder = new Boulder(this, x, y);
-                        this.tiles.set(`${x},${y}`, boulder);
+                        this.tiles.set(`${x},${y}`, new Boulder(this, x, y));
+                        break;
+                    case TileType.Diamond:
+                        this.tiles.set(`${x},${y}`, new Diamond(this, x, y));
+                        break;
+                    case TileType.Butterfly:
+                        this.tiles.set(`${x},${y}`, new Butterfly(this, x, y));
+                        break;
+                    case TileType.Firefly:
+                        this.tiles.set(`${x},${y}`, new Firefly(this, x, y));
+                        break;
+                    case TileType.Amoeba:
+                        this.tiles.set(`${x},${y}`, new Amoeba(this, x, y));
+                        break;
+                    case TileType.MagicWall:
+                        this.tiles.set(`${x},${y}`, new MagicWall(this, x, y));
                         break;
                     default:
                         this.add.image(
@@ -261,10 +293,17 @@ export class GameScene extends Phaser.Scene implements IGameScene {
     }
 
     update() {
-        // Update all tiles (this will handle boulder falling and rolling)
+        if (this.isPlayerDead || this.isLevelComplete) {
+            return; // Stop updates if game is over
+        }
+
+        // Update all tiles
         for (const tile of this.tiles.values()) {
             tile.update();
         }
+
+        // Check for death by boulder or enemies
+        this.checkForDeath();
 
         if (this.isMoving) {
             const targetX = this.playerGridPos.x * this.tileSize + this.tileSize/2;
@@ -288,28 +327,124 @@ export class GameScene extends Phaser.Scene implements IGameScene {
             const newX = this.playerGridPos.x + dx;
             const newY = this.playerGridPos.y + dy;
 
-            // Check if the new position is valid
             const targetTile = this.level.getTile(newX, newY);
-            if (targetTile === TileType.Boulder) {
-                // Try to push the boulder
-                const boulder = this.tiles.get(`${newX},${newY}`) as Boulder;
-                if (boulder && boulder.canBePushed({ dx, dy })) {
-                    boulder.push({ dx, dy });
+            switch (targetTile) {
+                case TileType.Boulder:
+                    const boulder = this.tiles.get(`${newX},${newY}`) as Boulder;
+                    if (boulder && boulder.canBePushed({ dx, dy })) {
+                        boulder.push({ dx, dy });
+                        this.movePlayer(newX, newY);
+                    }
+                    break;
+                    
+                case TileType.Diamond:
+                    this.collectDiamond(newX, newY);
                     this.movePlayer(newX, newY);
-                }
-            } else if (targetTile === TileType.Empty || targetTile === TileType.Dirt) {
-                if (targetTile === TileType.Dirt) {
-                    this.level.setTile(newX, newY, TileType.Empty);
-                    // Find and destroy the dirt image
-                    this.children.list
-                        .filter(obj => obj instanceof Phaser.GameObjects.Image)
-                        .find(img => {
-                            return img.x === newX * this.tileSize + this.tileSize/2 && 
-                                   img.y === newY * this.tileSize + this.tileSize/2;
-                        })?.destroy();
-                }
-                this.movePlayer(newX, newY);
+                    break;
+                    
+                case TileType.Empty:
+                case TileType.Dirt:
+                    if (targetTile === TileType.Dirt) {
+                        this.level.setTile(newX, newY, TileType.Empty);
+                        this.children.list
+                            .filter(obj => obj instanceof Phaser.GameObjects.Image)
+                            .find(img => {
+                                return img.x === newX * this.tileSize + this.tileSize/2 && 
+                                       img.y === newY * this.tileSize + this.tileSize/2;
+                            })?.destroy();
+                    }
+                    this.movePlayer(newX, newY);
+                    break;
+                    
+                case TileType.Exit:
+                    if (this.diamondsCollected >= this.requiredDiamonds) {
+                        this.levelComplete();
+                    }
+                    break;
             }
+        }
+    }
+
+    private collectDiamond(x: number, y: number) {
+        const key = `${x},${y}`;
+        const diamond = this.tiles.get(key);
+        if (diamond) {
+            diamond.destroy();
+            this.tiles.delete(key);
+            this.level.setTile(x, y, TileType.Empty);
+            this.diamondsCollected++;
+            this.scoreText.setText(`Diamonds: ${this.diamondsCollected}/${this.requiredDiamonds}`);
+            
+            // Show exit when enough diamonds are collected
+            if (this.diamondsCollected >= this.requiredDiamonds) {
+                this.showExit();
+            }
+        }
+    }
+
+    private checkForDeath() {
+        const px = this.playerGridPos.x;
+        const py = this.playerGridPos.y;
+        
+        // Check for boulder falling on player
+        const aboveTile = this.tiles.get(`${px},${py-1}`);
+        if (aboveTile instanceof Boulder && aboveTile.isFalling) {
+            this.playerDeath();
+            return;
+        }
+        
+        // Check for enemies
+        for (const tile of this.tiles.values()) {
+            if (tile instanceof Butterfly || tile instanceof Firefly) {
+                const pos = tile.getGridPosition();
+                if (pos.x === px && pos.y === py) {
+                    this.playerDeath();
+                    return;
+                }
+            }
+        }
+    }
+
+    private playerDeath() {
+        if (this.isPlayerDead) return;
+        
+        this.isPlayerDead = true;
+        this.add.text(this.scale.width/2, this.scale.height/2, 'Game Over', {
+            fontSize: '64px',
+            color: '#ff0000'
+        }).setOrigin(0.5).setScrollFactor(0);
+        
+        // Restart the scene after a delay
+        this.time.delayedCall(2000, () => {
+            this.scene.restart();
+        });
+    }
+
+    private levelComplete() {
+        if (this.isLevelComplete) return;
+        
+        this.isLevelComplete = true;
+        this.add.text(this.scale.width/2, this.scale.height/2, 'Level Complete!', {
+            fontSize: '64px',
+            color: '#00ff00'
+        }).setOrigin(0.5).setScrollFactor(0);
+        
+        // Go back to menu after a delay
+        this.time.delayedCall(2000, () => {
+            this.scene.start('MenuScene');
+        });
+    }
+
+    private showExit() {
+        // Find a suitable position for the exit (e.g., near the edge of the map)
+        let exitX = this.level.width - 2;
+        let exitY = this.level.height - 2;
+        
+        // Make sure the position is empty or dirt
+        const tile = this.level.getTile(exitX, exitY);
+        if (tile === TileType.Empty || tile === TileType.Dirt) {
+            this.level.setTile(exitX, exitY, TileType.Exit);
+            new Exit(this, exitX, exitY);
         }
     }
 

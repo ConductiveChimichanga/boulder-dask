@@ -3,8 +3,14 @@ import { Tile } from './Tile';
 import { GameScene } from '../game';
 
 export class Boulder extends Tile {
+    private _isFalling: boolean = false;
+    
     constructor(scene: GameScene, x: number, y: number) {
         super(scene, x, y, 'boulder');
+    }
+
+    get isFalling(): boolean {
+        return this._isFalling;
     }
 
     canBePushed({ dx, dy }: { dx: number; dy: number }): boolean {
@@ -30,7 +36,10 @@ export class Boulder extends Tile {
         
         // If there's empty space below, fall down
         if (below === TileType.Empty) {
+            this._isFalling = true;
             this.scene.moveTile(pos.x, pos.y, pos.x, pos.y + 1);
+        } else {
+            this._isFalling = false;
         }
     }
 }

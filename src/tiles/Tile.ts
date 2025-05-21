@@ -1,7 +1,7 @@
 import { GameScene } from '../game';
 
 export abstract class Tile {
-    protected sprite: Phaser.GameObjects.Image;
+    public sprite: Phaser.GameObjects.Image;
     protected scene: GameScene;
     protected gridX: number;
     protected gridY: number;
@@ -35,5 +35,9 @@ export abstract class Tile {
 
     getGridPosition() {
         return { x: this.gridX, y: this.gridY };
+    }
+
+    destroy() {
+        this.sprite.destroy();
     }
 }
